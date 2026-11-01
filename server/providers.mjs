@@ -1,13 +1,17 @@
+import { readVault } from './storage.mjs';
 export function getConfig(env = process.env) {
+  const saved = env === process.env ? readVault() : {};
+  const provider = saved.provider || env.AI_PROVIDER || 'ollama';
   return {
-    provider: env.AI_PROVIDER || 'ollama',
-    model: env.AI_MODEL || 'llama3.2:3b',
+    provider,
+    model: saved.model || env.AI_MODEL || 'llama3.2:3b',
     base:
-      env.AI_PROVIDER === 'openai'
+      saved.base ||
+      (provider === 'openai'
         ? env.AI_BASE_URL || 'https://api.openai.com/v1'
-        : env.OLLAMA_URL || 'http://127.0.0.1:11434',
-    key: env.AI_API_KEY || '',
-    search: env.SEARXNG_URL || '',
+        : env.OLLAMA_URL || 'http://127.0.0.1:11434'),
+    key: Object.hasOwn(saved, 'key') ? saved.key : env.AI_API_KEY || '',
+    search: saved.search ?? env.SEARXNG_URL ?? '',
   };
 }
 export async function complete(messages, model, signal, config = getConfig()) {
@@ -28,9 +32,18 @@ export async function complete(messages, model, signal, config = getConfig()) {
         : AbortSignal.timeout(120000),
       headers: {
         'Content-Type': 'application/json',
-        ...(config.key ? { Authorization: `Bearer ${config.key}` } : {}),
+        ...(config.provider === 'openai' && config.key
+          ? { Authorization: `Bearer ${config.key}` }
+          : {}),
       },
-      body: JSON.stringify({ model: chosen, messages, stream: false }),
+      body: JSON.stringify({
+        model: chosen,
+        messages,
+        stream: false,
+        ...(config.provider === 'ollama'
+          ? { options: { num_predict: 4096 } }
+          : { max_tokens: 4096 }),
+      }),
     });
   } catch (e) {
     if (signal?.aborted) throw e;
@@ -45,7 +58,8 @@ export async function complete(messages, model, signal, config = getConfig()) {
   const data = await response.json();
   const text =
     config.provider === 'ollama' ? data.message?.content : data.choices?.[0]?.message?.content;
-  if (!text) throw new Error('Model boş yanıt verdi.');
+  if (typeof text !== 'string' || !text.trim()) throw new Error('Model boş yanıt verdi.');
+  if (text.length > 50000) throw new Error('Model yanıtı boyut sınırını aştı.');
   return text;
 }
 export async function searchWeb(query, signal, config = getConfig()) {

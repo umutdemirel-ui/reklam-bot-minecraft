@@ -148,7 +148,8 @@ export default function HomePage({
                 desc: 'Yerel erişim hakkında bilgi',
                 action: () => {
                   navigate('tools');
-                  notify('Dosya sistemi erişimi web istemcisinde desteklenmiyor.');
+                  if (!window.prometheusDesktop)
+                    notify('Dosya sistemi erişimi için yerel masaüstü istemcisi gerekli.');
                 },
                 color: 'amber',
               },
@@ -166,16 +167,19 @@ export default function HomePage({
                 action: () => navigate('history'),
                 color: 'purple',
               },
-            ].map((q) => (
-              <button className="quick-card" key={q.label} onClick={q.action}>
-                <span className={`quick-icon ${q.color}`}>
-                  <q.icon size={21} strokeWidth={1.5} />
-                </span>
-                <ArrowUpRight className="card-arrow" size={15} />
-                <h3>{q.label}</h3>
-                <p>{q.desc}</p>
-              </button>
-            ))}
+            ]
+              .map((q, id) => ({ ...q, id }))
+              .sort((a, b) => prefs.cardOrder.indexOf(a.id) - prefs.cardOrder.indexOf(b.id))
+              .map((q) => (
+                <button className="quick-card" key={q.label} onClick={q.action}>
+                  <span className={`quick-icon ${q.color}`}>
+                    <q.icon size={21} strokeWidth={1.5} />
+                  </span>
+                  <ArrowUpRight className="card-arrow" size={15} />
+                  <h3>{q.label}</h3>
+                  <p>{q.desc}</p>
+                </button>
+              ))}
           </div>
         </section>
       )}
@@ -250,7 +254,7 @@ export default function HomePage({
           <ShieldCheck size={13} /> İzin olmadan işlem yok. Kontrol her zaman sizde.
         </span>
         <span>
-          Birlikte inşa ediyoruz <span className="footer-dot">·</span> v0.1.0
+          Birlikte inşa ediyoruz <span className="footer-dot">·</span> v0.2.0
         </span>
       </footer>
     </>

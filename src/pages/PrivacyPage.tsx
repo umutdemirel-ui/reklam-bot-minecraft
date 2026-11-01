@@ -31,8 +31,9 @@ export default function PrivacyPage({ listening, navigate }: Props) {
           </div>
           <p className="panel-description">
             Dinleme yalnızca mikrofon düğmesine dokunduğunuzda başlar. İzin tarayıcı tarafından
-            sorulur; aynı düğmeyle durdurulur. Ses kaydı depolanmaz, yalnızca gönderilen komut metni
-            geçmişe yazılır.
+            sorulur; aynı düğmeyle durdurulur. Tarayıcı STT modunda kayıt tutulmaz. Yerel Whisper
+            modunda kayıt sunucuya geçici dosya olarak yazılır, işlem sonunda silinir. Gönderilen
+            metin geçmişe yazılır.
           </p>
           <div className="notice warning">
             <Info size={17} /> Tarayıcı ses tanıma hizmeti bulut tabanlı olabilir. Çevrimdışı veya
@@ -51,7 +52,10 @@ export default function PrivacyPage({ listening, navigate }: Props) {
           <ul className="privacy-list">
             <li>
               <Check size={16} />
-              <span>Tercihler, son 100 komut ve son 20 araştırma bu tarayıcıda saklanır.</span>
+              <span>
+                Tercihler ve son 100 komut bu tarayıcıda; en fazla 50 araştırma sunucuda saklanır.
+                Eşitleme seçilirse geçmişin bir kopyası sunucuda tutulur.
+              </span>
             </li>
             <li>
               <Check size={16} />
@@ -62,12 +66,16 @@ export default function PrivacyPage({ listening, navigate }: Props) {
             <li>
               <Check size={16} />
               <span>
-                Araştırma konusu arama sağlayıcısıyla paylaşılır. Arama özetleri modele gönderilir.
+                Araştırma konusu arama sağlayıcısıyla paylaşılır. Arama özetleri ve okunabilen tam
+                sayfa metinleri modele gönderilir.
               </span>
             </li>
             <li>
               <Check size={16} />
-              <span>API anahtarları tarayıcıda veya kaynak kodunda tutulmaz.</span>
+              <span>
+                API anahtarları sunucuda AES-GCM ile saklanabilir; Electron güvenli OS kasası
+                uygunsa anahtarını orada korur. Tarayıcıya geri okunmaz.
+              </span>
             </li>
           </ul>
           <Button secondary onClick={() => navigate('history')}>
@@ -79,12 +87,16 @@ export default function PrivacyPage({ listening, navigate }: Props) {
         <div className="panel-title">
           <Monitor size={19} />
           <h2>Cihaz yetkileri</h2>
-          <span className="small-tag">Erişim yok</span>
+          <span className="small-tag">
+            {window.prometheusDesktop ? 'Seçili izinler · Native onay' : 'Web cihaz yetkisi yok'}
+          </span>
         </div>
         <p className="panel-description">
-          Bu sürümde dosya silme, program açma, şifre okuma veya sistem ayarı değiştirme araçları
-          yoktur. Gelecekteki yerel istemcide izin listeleri, riskli eylem onayları ve eylem günlüğü
-          ayrı bir güvenlik katmanı olarak uygulanmalıdır. Henüz uygulanmış değildir.
+          Web/mobil istemciler bilgisayarınızdaki uygulamaları kontrol edemez. Electron istemcisinde
+          yalnız seçili uygulama açma, bu oturumun sahip olduğu süreçleri kapatma, izinli
+          klasörlerde arama ve ayar paneli açma araçları vardır. Silme, şifre okuma veya doğrudan
+          sistem ayarı değiştirme aracı yoktur. Açma/kapatma/konum gösterme ve ayar paneli için
+          native onay alınır; içerik içermeyen işlem günlüğü tutulur.
         </p>
       </section>
     </>

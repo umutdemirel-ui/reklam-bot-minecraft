@@ -1,3 +1,4 @@
+import { navigation } from '../lib/navigation';
 import type { CSSProperties } from 'react';
 import {
   Palette,
@@ -131,6 +132,12 @@ export default function PersonalizePage({ prefs, preference, onReset }: Props) {
             onChange={(v) => preference('showFeatures', v)}
           />
           <Toggle
+            label="Önceki sohbeti bağlama ekle"
+            description="Son 6 başarılı sohbet çifti modele gönderilir. Hassas geçmiş için kapalı tutun."
+            checked={prefs.rememberContext}
+            onChange={(v) => preference('rememberContext', v)}
+          />
+          <Toggle
             label="Sesli yanıt"
             description="Asistan yanıtlarını otomatik seslendirin."
             checked={prefs.speak}
@@ -139,6 +146,69 @@ export default function PersonalizePage({ prefs, preference, onReset }: Props) {
           <div className="notice">
             <CheckCircle2 size={17} /> Tercihleriniz bu tarayıcıda otomatik kaydedilir.
           </div>
+        </section>
+        <section className="panel">
+          <h2>Kart sıralaması</h2>
+          <p className="panel-description">Ana sayfa kısayollarını yukarı/aşağı taşıyın.</p>
+          {prefs.cardOrder.map((id, index) => (
+            <div className="native-row" key={id}>
+              <span>
+                {
+                  [
+                    'Program aç',
+                    'Dosya veya klasör bul',
+                    'İnternette araştır',
+                    'Kaldığın yerden devam et',
+                  ][id]
+                }
+              </span>
+              <Button
+                secondary
+                disabled={index === 0}
+                onClick={() => {
+                  const next = [...prefs.cardOrder];
+                  [next[index - 1], next[index]] = [next[index], next[index - 1]];
+                  preference('cardOrder', next);
+                }}
+              >
+                ↑
+              </Button>
+              <Button
+                secondary
+                disabled={index === 3}
+                onClick={() => {
+                  const next = [...prefs.cardOrder];
+                  [next[index + 1], next[index]] = [next[index], next[index + 1]];
+                  preference('cardOrder', next);
+                }}
+              >
+                ↓
+              </Button>
+            </div>
+          ))}
+        </section>
+        <section className="panel">
+          <h2>Menü görünürlüğü</h2>
+          <p className="panel-description">
+            Ana Sayfa, Ayarlar ve Kişiselleştirme her zaman erişilebilir kalır.
+          </p>
+          {navigation
+            .filter((n) => !['home', 'settings', 'personalize'].includes(n.id))
+            .map((n) => (
+              <Toggle
+                key={n.id}
+                label={n.label}
+                checked={!prefs.hiddenPages.includes(n.id)}
+                onChange={(show) =>
+                  preference(
+                    'hiddenPages',
+                    show
+                      ? prefs.hiddenPages.filter((id) => id !== n.id)
+                      : [...prefs.hiddenPages, n.id],
+                  )
+                }
+              />
+            ))}
         </section>
         <section className="panel reset-panel">
           <h3>Yeni bir başlangıç</h3>

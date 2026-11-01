@@ -67,7 +67,7 @@ test('web bağlantısı yoksa akış hatası döner, rapor veya kaynak uydurulma
   );
 });
 test('aşırı büyük gövde ve JSON dışı istekler engellenir', async () => {
-  assert.equal((await post('/api/chat', { text: 'x'.repeat(30000) })).status, 413);
+  assert.equal((await post('/api/chat', { text: 'x'.repeat(70000) })).status, 413);
   assert.equal((await fetch(base + '/api/chat', { method: 'POST', body: 'test' })).status, 415);
 });
 test('bilinmeyen API yolu JSON 404 döndürür', async () => {

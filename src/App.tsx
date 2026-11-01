@@ -1,3 +1,8 @@
+import DevicesPanel from './components/DevicesPanel';
+import AuthGate from './components/AuthGate';
+import ConnectionPanel from './components/ConnectionPanel';
+import SyncPanel from './components/SyncPanel';
+import './lib/desktop';
 import HistoryPage from './pages/HistoryPage';
 import TasksPage from './pages/TasksPage';
 import ResearchPage from './pages/ResearchPage';
@@ -41,10 +46,17 @@ import {
 
 import { defaults, useStored } from './lib/storage';
 import { routeCommand } from './lib/commands.mjs';
-import { useSpeech, speak } from './lib/speech';
+import { useSpeech, speak, stopSpeech } from './lib/speech';
 import type { Page, Preferences, Entry, Research, Health } from './lib/types';
 
 export default function App() {
+  return (
+    <AuthGate>
+      <Workspace />
+    </AuthGate>
+  );
+}
+function Workspace() {
   const initialPage = location.hash.slice(1) as Page;
   const [page, setPage] = useState<Page>(
     navigation.some((n) => n.id === initialPage) ? initialPage : 'home',
@@ -134,7 +146,7 @@ export default function App() {
     () => () => {
       abortRef.current?.abort();
       chatAbortRef.current?.abort();
-      window.speechSynthesis?.cancel();
+      stopSpeech();
     },
     [],
   );
@@ -174,11 +186,12 @@ export default function App() {
     },
     (text) => notify(text, true),
     prefs.language,
+    { mode: prefs.sttMode, deviceId: prefs.microphoneId },
   );
   function appendEntry(entry: Entry) {
     setHistory((old) => [entry, ...old].slice(0, 100));
     setResult(entry);
-    if (prefs.speak && !speak(entry.response, prefs.language, prefs.speechRate))
+    if (prefs.speak && !speak(entry.response, prefs.language, prefs.speechRate, prefs.ttsMode))
       notify('Bu tarayıcı sesli yanıtı desteklemiyor.', true);
   }
   async function submitCommand(text = command) {
@@ -222,10 +235,44 @@ export default function App() {
       appendEntry(entry);
       return;
     }
+    if (route.type === 'device' && window.prometheusDesktop) {
+      try {
+        const caps = await window.prometheusDesktop.capabilities();
+        const normalized = text.trim().toLocaleLowerCase('tr');
+        const match = caps.applications.find((a) =>
+          normalized.includes(a.name.toLocaleLowerCase('tr')),
+        );
+        if (match && /(?:aç|kapat)$/.test(normalized)) {
+          const d = await window.prometheusDesktop.execute(
+            normalized.endsWith('kapat') ? 'closeApplication' : 'openApplication',
+            { id: match.id },
+          );
+          entry.response = d.cancelled
+            ? 'İşlem native onay penceresinde iptal edildi.'
+            : d.message || 'İstek iletildi.';
+        } else if (/^(dosya|klasör) bul /i.test(normalized)) {
+          const d = await window.prometheusDesktop.execute('find', {
+            query: text.replace(/^(dosya|klasör) bul /i, ''),
+          });
+          entry.response =
+            (d.results || []).map((r) => r.path).join('\n') || 'İzinli klasörlerde eşleşme yok.';
+        } else {
+          navigate('tools');
+          entry.status = 'unsupported';
+          entry.response =
+            'İzinli uygulama adı bulunamadı. Araçlar ekranında uygulama/klasör seçin. Örnek: “uygulama.exe aç” veya “dosya bul rapor”. İşlem yapılmadı.';
+        }
+      } catch (e) {
+        entry.status = 'error';
+        entry.response = (e as Error).message;
+      }
+      appendEntry(entry);
+      return;
+    }
     if (route.type === 'device') {
       entry.status = 'unsupported';
       entry.response =
-        'Bu web istemcisi bilgisayarınızdaki uygulamaları veya dosyaları kontrol edemez. Bu işlem için izin tabanlı yerel masaüstü bağdaştırıcısı gerekir; henüz uygulanmadı. Cihazınızda hiçbir işlem yapılmadı.';
+        'Bu web istemcisi bilgisayarınızdaki uygulamaları veya dosyaları kontrol edemez. İzinli araçlar için yerel Electron istemcisini çalıştırın. Cihazınızda hiçbir işlem yapılmadı.';
       appendEntry(entry);
       return;
     }
@@ -236,7 +283,20 @@ export default function App() {
     try {
       const data = await api(
         '/api/chat',
-        { text: text.trim(), model: prefs.model },
+        {
+          text: text.trim(),
+          model: prefs.model,
+          context: prefs.rememberContext
+            ? history
+                .filter((h) => h.type === 'chat' && h.status === 'done')
+                .slice(0, 6)
+                .reverse()
+                .flatMap((h) => [
+                  { role: 'user', content: h.text.slice(0, 4000) },
+                  { role: 'assistant', content: h.response.slice(0, 4000) },
+                ])
+            : [],
+        },
         controller.signal,
       );
       entry.response = data.text;
@@ -266,9 +326,62 @@ export default function App() {
       notify((e as Error).message, true);
     }
   }
+  useEffect(() => {
+    if (!health?.durableJobs) return;
+    let disposed = false,
+      pending = false;
+    async function refresh() {
+      if (pending) return;
+      pending = true;
+      try {
+        const jobs: Research[] = await api('/api/jobs');
+        if (!disposed && Array.isArray(jobs)) {
+          setResearches((old) => (JSON.stringify(old) === JSON.stringify(jobs) ? old : jobs));
+          setResearch((current) =>
+            current
+              ? jobs.find((j) => j.id === current.id) || current
+              : jobs.find((j) => ['running', 'queued'].includes(j.status)) || null,
+          );
+        }
+      } catch {
+        /* Session/connection state is surfaced on explicit actions. */
+      } finally {
+        pending = false;
+      }
+    }
+    void refresh();
+    const interval = setInterval(refresh, 2500);
+    return () => {
+      disposed = true;
+      clearInterval(interval);
+    };
+  }, [health?.durableJobs, setResearches]);
+  useEffect(() => {
+    const listener = (e: Event) => notify((e as CustomEvent<string>).detail, true);
+    window.addEventListener('prometheus:speech-error', listener);
+    return () => window.removeEventListener('prometheus:speech-error', listener);
+  }, []);
+  async function stopResearch() {
+    if (health?.durableJobs && research) {
+      try {
+        await api(`/api/jobs/${research.id}/cancel`, {});
+        const jobs: Research[] = await api('/api/jobs');
+        setResearches(jobs);
+        setResearch(jobs.find((j) => j.id === research.id) || null);
+      } catch (e) {
+        notify((e as Error).message, true);
+      }
+    } else abortRef.current?.abort();
+  }
+  const startingResearch = useRef(false);
   async function startResearch(e?: React.FormEvent) {
     e?.preventDefault();
-    if (research?.status === 'running' || abortRef.current) return;
+    if (
+      ['running', 'queued'].includes(research?.status || '') ||
+      abortRef.current ||
+      startingResearch.current
+    )
+      return;
     const subject = topic.trim();
     if (subject.length < 3 || subject.length > 1000) {
       notify('Araştırma konusu 3–1000 karakter olmalı.', true);
@@ -279,6 +392,23 @@ export default function App() {
         'Gerçek web araştırması için sunucuda SEARXNG_URL tanımlayın. Ayarlar bölümünde kurulum bilgileri var.',
         true,
       );
+      return;
+    }
+    if (health?.durableJobs) {
+      startingResearch.current = true;
+      try {
+        const { id } = await api('/api/jobs', { topic: subject, model: prefs.model });
+        const jobs: Research[] = await api('/api/jobs');
+        setResearches(jobs);
+        setResearch(jobs.find((j) => j.id === id) || null);
+        notify(
+          'Araştırma kalıcı görev kuyruğuna eklendi. Sayfayı kapatsanız da sunucuda devam eder.',
+        );
+      } catch (e) {
+        notify((e as Error).message, true);
+      } finally {
+        startingResearch.current = false;
+      }
       return;
     }
     const current: Research = {
@@ -321,6 +451,8 @@ export default function App() {
           if (event.error) throw new Error(event.error);
           if (typeof event.step === 'number') current.step = event.step;
           if (event.sources) current.sources = event.sources;
+          if (event.plan) current.plan = event.plan;
+          if (event.findings) current.findings = event.findings;
           if (event.report) {
             current.report = event.report;
             current.status = 'done';
@@ -340,10 +472,38 @@ export default function App() {
       setResearches((old) => [{ ...current }, ...old].slice(0, 20));
     }
   }
+  const [clearing, setClearing] = useState(false);
+  async function clearConfirmed() {
+    if (clearing) return;
+    setClearing(true);
+    try {
+      if (confirm === 'history') {
+        setHistory([]);
+        setResult(null);
+      } else if (confirm === 'research') {
+        if (health?.durableJobs) {
+          for (const j of researches.filter((j) => !['running', 'queued'].includes(j.status)))
+            await api(`/api/jobs/${j.id}/delete`, {});
+          const remaining: Research[] = await api('/api/jobs');
+          setResearches(remaining);
+          if (research && !remaining.some((j) => j.id === research.id)) setResearch(null);
+        } else {
+          setResearches([]);
+          if (research?.status !== 'running') setResearch(null);
+        }
+      } else setPrefs(defaults);
+      setConfirm(null);
+      notify('İşlem tamamlandı.');
+    } catch (e) {
+      notify((e as Error).message, true);
+    } finally {
+      setClearing(false);
+    }
+  }
   function researchExport(item: Research) {
     exportFile(
       `prometheus-arastirma-${item.id.slice(0, 8)}.md`,
-      `# ${item.topic}\n\n${item.report}\n\n## Kaynaklar\n${item.sources.map((s, i) => `${i + 1}. [${s.title}](${s.url})`).join('\n')}\n\nNot: Rapor arama özetlerine dayanır; tam kaynak sayfaları incelenmemiştir.\n${item.date}`,
+      `# ${item.topic}\n\n${item.report}\n\n## Kaynaklar\n${item.sources.map((s, i) => `${i + 1}. [${s.title}](${s.url})`).join('\n')}\n\nNot: Tam sayfa ve özet erişimi kaynaklarda ayrı belirtilir. Alıntı eşleşmesi olgusal doğruluk garantisi değildir.\n${item.date}`,
     );
   }
   function prepareCommand(text: string) {
@@ -467,7 +627,7 @@ export default function App() {
               <button
                 className="text-button"
                 onClick={() => {
-                  if (!speak(result.response, prefs.language, prefs.speechRate))
+                  if (!speak(result.response, prefs.language, prefs.speechRate, prefs.ttsMode))
                     notify('Ses sentezi desteklenmiyor.', true);
                 }}
               >
@@ -527,33 +687,39 @@ export default function App() {
         </div>
         <nav aria-label="Ana gezinme">
           <p className="nav-label">ÇALIŞMA ALANI</p>
-          {navigation.slice(0, 6).map((n) => (
-            <button
-              key={n.id}
-              className={`nav-item ${page === n.id ? 'active' : ''}`}
-              onClick={() => navigate(n.id)}
-              aria-current={page === n.id ? 'page' : undefined}
-            >
-              <Icon icon={n.icon} />
-              <span>{n.label}</span>
-              {n.badge && <small className="beta-tag">{n.badge}</small>}
-              {n.id === 'tasks' && research?.status === 'running' && (
-                <span className="nav-count">1</span>
-              )}
-            </button>
-          ))}
+          {navigation
+            .slice(0, 6)
+            .filter((n) => !prefs.hiddenPages.includes(n.id))
+            .map((n) => (
+              <button
+                key={n.id}
+                className={`nav-item ${page === n.id ? 'active' : ''}`}
+                onClick={() => navigate(n.id)}
+                aria-current={page === n.id ? 'page' : undefined}
+              >
+                <Icon icon={n.icon} />
+                <span>{n.label}</span>
+                {n.badge && <small className="beta-tag">{n.badge}</small>}
+                {n.id === 'tasks' && research?.status === 'running' && (
+                  <span className="nav-count">1</span>
+                )}
+              </button>
+            ))}
           <p className="nav-label preferences-label">TERCİHLER</p>
-          {navigation.slice(6).map((n) => (
-            <button
-              key={n.id}
-              className={`nav-item ${page === n.id ? 'active' : ''}`}
-              onClick={() => navigate(n.id)}
-              aria-current={page === n.id ? 'page' : undefined}
-            >
-              <Icon icon={n.icon} />
-              <span>{n.label}</span>
-            </button>
-          ))}
+          {navigation
+            .slice(6)
+            .filter((n) => !prefs.hiddenPages.includes(n.id))
+            .map((n) => (
+              <button
+                key={n.id}
+                className={`nav-item ${page === n.id ? 'active' : ''}`}
+                onClick={() => navigate(n.id)}
+                aria-current={page === n.id ? 'page' : undefined}
+              >
+                <Icon icon={n.icon} />
+                <span>{n.label}</span>
+              </button>
+            ))}
         </nav>
         <div className="sidebar-bottom">
           <div className="privacy-card">
@@ -572,7 +738,8 @@ export default function App() {
           <div className="local-status">
             <span className="status-dot" />
             <span>
-              Web istemcisi<small>v0.1.0 · Önizleme</small>
+              {window.prometheusDesktop ? 'Yerel masaüstü' : 'Web istemcisi'}
+              <small>v0.2.0 · Doğrulama sürümü</small>
             </span>
             <button
               className="icon-button"
@@ -653,8 +820,8 @@ export default function App() {
                 <div className="popover">
                   <strong>Kişisel çalışma alanı</strong>
                   <p>
-                    Hesap gerekmez. Tercihleriniz bu tarayıcıda saklanır. Cihazlar arası
-                    senkronizasyon henüz yok.
+                    Hesap gerekmez. Tercihleriniz bu tarayıcıda saklanır. İsteğe bağlı cihazlar
+                    arası aktarımı Ayarlar bölümünden yönetebilirsiniz.
                   </p>
                   <button className="text-button" onClick={() => navigate('personalize')}>
                     <Palette size={15} /> Alanınızı kişiselleştirin
@@ -736,7 +903,7 @@ export default function App() {
               research={research}
               startResearch={startResearch}
               navigate={navigate}
-              onStop={() => abortRef.current?.abort()}
+              onStop={() => void stopResearch()}
               researchExport={researchExport}
             />
           )}
@@ -754,10 +921,6 @@ export default function App() {
               researches={researches}
               navigate={navigate}
               onSelect={(item) => {
-                if (research?.status === 'running') {
-                  notify('Önce devam eden araştırmayı durdurun.', true);
-                  return;
-                }
                 setResearch(item);
                 setTopic(item.topic);
                 navigate('research');
@@ -777,14 +940,31 @@ export default function App() {
             />
           )}
           {page === 'settings' && (
-            <SettingsPage
-              health={health}
-              prefs={prefs}
-              preference={preference}
-              connection={connection}
-              models={models}
-              testConnection={testConnection}
-            />
+            <>
+              <ConnectionPanel
+                onSaved={() => {
+                  api('/api/health').then(setHealth);
+                  setConnection('idle');
+                }}
+              />
+              <SettingsPage
+                health={health}
+                prefs={prefs}
+                preference={preference}
+                connection={connection}
+                models={models}
+                testConnection={testConnection}
+              />
+              <DevicesPanel />
+              <SyncPanel
+                prefs={prefs}
+                history={history}
+                restore={(p, h) => {
+                  setPrefs(p);
+                  setHistory(h);
+                }}
+              />
+            </>
           )}
           {page === 'personalize' && (
             <PersonalizePage
@@ -883,25 +1063,15 @@ export default function App() {
                 <p>
                   {confirm === 'preferences'
                     ? 'Tema ve ses ayarları varsayılana dönecek. Konuşmalarınız korunur.'
-                    : 'Bu işlem yalnızca bu tarayıcıdaki kayıtları kalıcı olarak siler. Geri alınamaz.'}
+                    : confirm === 'research' && health?.durableJobs
+                      ? 'Tamamlanmış/kesilmiş araştırmalar sunucudan ve bütün bağlı cihazların listesinden silinir. Devam eden işler korunur. Geri alınamaz.'
+                      : 'Bu işlem yalnızca bu tarayıcıdaki kayıtları kalıcı olarak siler. Geri alınamaz.'}
                 </p>
                 <div className="modal-actions">
                   <Button secondary onClick={() => setConfirm(null)}>
                     Vazgeç
                   </Button>
-                  <Button
-                    onClick={() => {
-                      if (confirm === 'history') {
-                        setHistory([]);
-                        setResult(null);
-                      } else if (confirm === 'research') {
-                        setResearches([]);
-                        if (research?.status !== 'running') setResearch(null);
-                      } else setPrefs(defaults);
-                      setConfirm(null);
-                      notify('İşlem tamamlandı.');
-                    }}
-                  >
+                  <Button disabled={clearing} onClick={() => void clearConfirmed()}>
                     {confirm === 'preferences' ? 'Sıfırla' : 'Evet, geçmişi sil'}
                   </Button>
                 </div>

@@ -10,7 +10,7 @@ export default function AboutPage() {
           prometheus<span>.</span>
         </h2>
         <p>Merakınızla başlar. Sizinle gelişir.</p>
-        <span className="small-tag">v0.1.0 · Geliştirici önizlemesi</span>
+        <span className="small-tag">v0.2.0 · Platform doğrulama sürümü</span>
       </section>
       <div className="two-column">
         <section className="panel">
@@ -23,7 +23,10 @@ export default function AboutPage() {
             <li>Kalıcı tema, renk ve ses tercihleri</li>
             <li>Gerçek model bağlantısı ve yazılı komutlar</li>
             <li>Destekli tarayıcılarda Türkçe ses tanıma</li>
-            <li>SearXNG ile kaynaklı araştırma özetleri</li>
+            <li>Kalıcı kuyruk, çoklu arama, tam sayfa okuma</li>
+            <li>Alıntı eşleştirme, plan ve kaynaklı rapor</li>
+            <li>Electron izinli araçları ve native mobil istemci</li>
+            <li>Parolalı oturum, cihaz iptali ve isteğe bağlı aktarım</li>
             <li>Yerel geçmiş ve Markdown / JSON dışa aktarma</li>
           </ul>
         </section>
@@ -33,19 +36,20 @@ export default function AboutPage() {
             <h2>Sırada ne var?</h2>
           </div>
           <ul className="feature-list muted">
-            <li>İzinli Windows, macOS ve Linux bağdaştırıcıları</li>
-            <li>Yerel STT / TTS ve mikrofon cihaz seçimi</li>
-            <li>Tam sayfa araştırma ve çapraz doğrulama</li>
-            <li>Yerel mobil istemci ve güvenli eşleştirme</li>
-            <li>İsteğe bağlı cihazlar arası senkronizasyon</li>
-            <li>Riskli işlemler için onay ve eylem günlüğü</li>
+            <li>Windows / macOS / Linux gerçek cihaz doğrulaması</li>
+            <li>Türkçe Whisper / Piper kalite ve donanım testleri</li>
+            <li>Bağımsız iddia doğrulama ve kaynak güvenilirliği</li>
+            <li>Android / iOS derleme, imzalama ve cihaz testi</li>
+            <li>Uçtan uca şifreli, otomatik senkronizasyon</li>
+            <li>Uygulama içi kapsamlı otomasyon ve sistem ayarı değişiklikleri</li>
           </ul>
         </section>
       </div>
       <div className="notice">
-        <Info size={18} /> Bu sürüm bir web istemcisidir. Windows, macOS, Linux, Android ve iOS için
-        yerel uygulama paketleri henüz oluşturulmadı veya test edilmedi. Model çıktıları hatalı
-        olabilir; önemli bilgileri doğrulayın.
+        <Info size={18} /> Bu görünüm web veya Electron istemcisinde kullanılabilir. React Native
+        mobil istemci ayrı projededir. Yerel kurulum paketleri ve gerçek cihaz testleri
+        tamamlanmadan tüm platformlar için final onayı verilemez. Model çıktıları hatalı olabilir;
+        önemli bilgileri doğrulayın.
       </div>
     </>
   );

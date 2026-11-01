@@ -13,6 +13,12 @@ export const defaults: Preferences = {
   speechRate: 1,
   language: 'tr-TR',
   model: '',
+  rememberContext: false,
+  sttMode: 'browser',
+  ttsMode: 'browser',
+  microphoneId: '',
+  hiddenPages: [],
+  cardOrder: [0, 1, 2, 3],
 };
 export function useStored<T>(
   key: string,

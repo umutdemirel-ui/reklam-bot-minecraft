@@ -71,7 +71,9 @@ export default function ResearchPage({
             </span>
             <Button
               type="submit"
-              disabled={research?.status === 'running' || topic.trim().length < 3}
+              disabled={
+                ['queued', 'running'].includes(research?.status || '') || topic.trim().length < 3
+              }
             >
               <Telescope size={16} /> Araştırmayı başlat <ArrowRight size={15} />
             </Button>
@@ -96,20 +98,37 @@ export default function ResearchPage({
           <div className="panel-title">
             <h2>{research.topic}</h2>
             <span className={`small-tag ${research.status === 'done' ? 'success' : ''}`}>
-              {research.status === 'running'
-                ? 'Devam ediyor'
-                : research.status === 'done'
-                  ? 'Tamamlandı'
-                  : research.status === 'cancelled'
-                    ? 'Durduruldu'
-                    : 'Hata'}
+              {research.status === 'queued'
+                ? 'Sırada'
+                : research.status === 'interrupted'
+                  ? 'Yeniden başlatılabilir'
+                  : research.status === 'running'
+                    ? 'Devam ediyor'
+                    : research.status === 'done'
+                      ? 'Tamamlandı'
+                      : research.status === 'cancelled'
+                        ? 'Durduruldu'
+                        : 'Hata'}
             </span>
-            {research.status === 'running' && (
+            {['running', 'queued'].includes(research.status) && (
               <Button secondary onClick={onStop}>
                 <Square size={13} /> Durdur
               </Button>
             )}
           </div>
+          {research.plan && (
+            <div className="research-plan">
+              <h3>Araştırma planı</h3>
+              <p>{research.plan.goal}</p>
+              <ul>
+                {research.plan.questions.map((q) => (
+                  <li key={q}>{q}</li>
+                ))}
+              </ul>
+              <small>Aramalar: {research.plan.queries.join(' · ')}</small>
+            </div>
+          )}
+          {research.message && <p className="muted small">{research.message}</p>}
           <ol className="research-steps">
             {researchSteps.map((s, i) => (
               <li
@@ -152,15 +171,19 @@ export default function ResearchPage({
           )}
           {research.sources.length > 0 && (
             <>
-              <h3 className="sources-title">
-                İncelenen arama özetleri ({research.sources.length})
-              </h3>
+              <h3 className="sources-title">Toplanan kaynaklar ({research.sources.length})</h3>
               <div className="source-list">
                 {research.sources.map((s, i) => (
                   <a key={i} href={safeHttpUrl(s.url) || '#'} target="_blank" rel="noreferrer">
                     <span>{i + 1}</span>
                     <div>
                       <strong>{s.title}</strong>
+                      <span className="small-tag">
+                        {s.mode === 'full' ? 'Tam sayfa okundu' : 'Yalnız arama özeti'}
+                      </span>
+                      {s.accessedAt && (
+                        <small>Erişim: {new Date(s.accessedAt).toLocaleString('tr-TR')}</small>
+                      )}
                       <small>{s.url}</small>
                       <p>{s.content}</p>
                     </div>
@@ -169,8 +192,9 @@ export default function ResearchPage({
                 ))}
               </div>
               <div className="notice">
-                <Info size={16} /> Bu sürüm arama özetlerini karşılaştırır; tam sayfa inceleme veya
-                bağımsız doğrulama yapmaz. Çıktıları kaynaklarla kontrol edin.
+                <Info size={16} /> İlk 5 kaynağın tam sayfası güvenli indiriciyle denenir.
+                Erişilemeyen kaynaklarda özet kullanılır. Alıntıların sayfa metninde eşleşmesi
+                kontrol edilir; bu bağımsız doğruluk veya kaynak güvenilirliği garantisi değildir.
               </div>
             </>
           )}

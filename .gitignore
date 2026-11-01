@@ -11,3 +11,19 @@ playwright-report/
 test-results/
 
 *.tsbuildinfo
+
+.prometheus/
+release/
+mobile/node_modules/
+mobile/.expo/
+mobile/android/
+mobile/ios/
+*.wav
+
+.output/
+.expo/
+__pycache__/
+*.py[cod]
+
+mobile/.output-ios/
+.venv/

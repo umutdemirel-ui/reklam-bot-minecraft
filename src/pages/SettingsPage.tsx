@@ -37,8 +37,8 @@ export default function SettingsPage({
             <span className="small-tag">Sunucu tarafı</span>
           </div>
           <p className="panel-description">
-            Sağlayıcı, bağlantı adresi ve API anahtarları sunucunun <code>.env</code> dosyasından
-            okunur. Anahtarlar tarayıcıya gönderilmez.
+            Sağlayıcı, bağlantı adresi ve API anahtarları sunucunun ortamından veya sahip oturumuyla
+            kaydedilen şifreli yerel yapılandırmadan okunur. Anahtarlar tarayıcıya gönderilmez.
           </p>
           <label className="field">
             Etkin sağlayıcı
@@ -131,8 +131,8 @@ export default function SettingsPage({
         <p className="panel-description">
           Kendi SearXNG sunucunuzda JSON aramasını etkinleştirip{' '}
           <code>SEARXNG_URL=http://127.0.0.1:8080</code> ekleyin. SearXNG açık kaynaklıdır;
-          barındırma ve ağ erişimi size aittir. Bu sürüm arama özetleri kullanır, tam kaynak
-          sayfalarını indirmez.
+          barındırma ve ağ erişimi size aittir. Araştırma motoru ilk 5 tam sayfayı güvenli
+          indiriciyle okumayı dener; başarısız kaynaklar açıkça özet olarak işaretlenir.
         </p>
       </section>
     </>

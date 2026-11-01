@@ -2,7 +2,7 @@ const accents = /^#[0-9a-f]{6}$/i;
 export function sanitizePreferences(value, defaults) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return defaults;
   const result = { ...defaults };
-  for (const key of ['compact', 'showFeatures', 'showCards', 'speak'])
+  for (const key of ['compact', 'showFeatures', 'showCards', 'speak', 'rememberContext'])
     if (typeof value[key] === 'boolean') result[key] = value[key];
   if (['dark', 'light'].includes(value.theme)) result.theme = value.theme;
   if (['glow', 'plain'].includes(value.background)) result.background = value.background;
@@ -13,6 +13,21 @@ export function sanitizePreferences(value, defaults) {
   if (typeof value.speechRate === 'number' && value.speechRate >= 0.5 && value.speechRate <= 1.5)
     result.speechRate = value.speechRate;
   if (typeof value.model === 'string' && value.model.length <= 100) result.model = value.model;
+  if (['browser', 'local'].includes(value.sttMode)) result.sttMode = value.sttMode;
+  if (['browser', 'local'].includes(value.ttsMode)) result.ttsMode = value.ttsMode;
+  if (typeof value.microphoneId === 'string' && value.microphoneId.length < 300)
+    result.microphoneId = value.microphoneId;
+  if (
+    Array.isArray(value.cardOrder) &&
+    value.cardOrder.length === 4 &&
+    new Set(value.cardOrder).size === 4 &&
+    value.cardOrder.every((i) => [0, 1, 2, 3].includes(i))
+  )
+    result.cardOrder = value.cardOrder;
+  if (Array.isArray(value.hiddenPages))
+    result.hiddenPages = value.hiddenPages.filter((p) =>
+      ['voice', 'research', 'tools', 'tasks', 'history', 'privacy', 'about'].includes(p),
+    );
   return result;
 }
 export function sanitizeRecords(value, type) {
@@ -30,7 +45,7 @@ export function sanitizeRecords(value, type) {
             ['done', 'error', 'unsupported'].includes(r.status)
           : typeof r.topic === 'string' &&
             typeof r.report === 'string' &&
-            ['done', 'error', 'cancelled'].includes(r.status) &&
+            ['queued', 'running', 'done', 'error', 'cancelled', 'interrupted'].includes(r.status) &&
             Array.isArray(r.sources) &&
             r.sources.every(
               (s) =>

@@ -1,0 +1,7 @@
+{
+  "expo": {
+    "name": "Prometheus", "slug": "prometheus-ai", "version": "0.2.0", "orientation": "default", "userInterfaceStyle": "automatic", "scheme": "prometheus", "ios": { "supportsTablet": true, "bundleIdentifier": "app.prometheus.assistant", "infoPlist": { "NSMicrophoneUsageDescription": "Konuşmanızı yalnız başlattığınızda kaydetmek ve seçtiğiniz Prometheus sunucusunda metne dönüştürmek için mikrofon gerekir." } },
+    "android": { "package": "app.prometheus.assistant", "permissions": ["RECORD_AUDIO"], "blockedPermissions": ["android.permission.READ_MEDIA_AUDIO", "android.permission.READ_EXTERNAL_STORAGE", "android.permission.WRITE_EXTERNAL_STORAGE"] },
+    "plugins": ["expo-secure-store", ["expo-audio", { "microphonePermission": "Sesli komut kaydı için mikrofon izni verin. Kayıt yalnız düğmeyle başlar." }]]
+  }
+}

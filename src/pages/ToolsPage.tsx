@@ -1,3 +1,4 @@
+import DesktopPanel from '../components/DesktopPanel';
 import {
   Mic,
   Telescope,
@@ -21,11 +22,13 @@ type Props = {
 export default function ToolsPage({ health, speechSupported, navigate, prepareCommand }: Props) {
   return (
     <>
+      <DesktopPanel />
       <div className="notice">
         <Monitor size={18} />
         <span>
-          <strong>Şu anda web istemcisindesiniz.</strong> Yerel program açma, dosya arama ve işletim
-          sistemi kontrolü bu sürümde yok. Masaüstü bağdaştırıcısı henüz geliştirilmedi.
+          <strong>Yetenekler istemciye göre değişir.</strong> Web ve mobil istemcide yerel
+          bilgisayar kontrol yetkisi yoktur. Electron istemcisinde izinli uygulama, klasör arama ve
+          ayar paneli araçları kullanılabilir.
         </span>
       </div>
       <div className="tools-grid">
@@ -58,22 +61,28 @@ export default function ToolsPage({ health, speechSupported, navigate, prepareCo
             icon: AppWindow,
             title: 'Uygulama kontrolü',
             text: 'Program açma ve kapatma için yerel ve izinli masaüstü entegrasyonu gerekir.',
-            tag: 'Henüz geliştirilmedi',
-            enabled: false,
+            tag: window.prometheusDesktop ? 'Native izin gerekli' : 'Yerel istemci gerekli',
+            enabled: Boolean(window.prometheusDesktop),
+            action: () =>
+              document.getElementById('desktop-tools')?.scrollIntoView({ behavior: 'smooth' }),
           },
           {
             icon: FolderSearch,
             title: 'Dosya ve klasör arama',
             text: 'Cihazınızın dosya sistemine erişim yok. Dosyalarınız taranmaz.',
-            tag: 'Henüz geliştirilmedi',
-            enabled: false,
+            tag: window.prometheusDesktop ? 'Native izin gerekli' : 'Yerel istemci gerekli',
+            enabled: Boolean(window.prometheusDesktop),
+            action: () =>
+              document.getElementById('desktop-tools')?.scrollIntoView({ behavior: 'smooth' }),
           },
           {
             icon: Terminal,
-            title: 'Sistem otomasyonu',
-            text: 'İşletim sistemi komutları ve çok adımlı yerel görevler şu an desteklenmez.',
-            tag: 'Henüz geliştirilmedi',
-            enabled: false,
+            title: 'İzinli yerel görev planı',
+            text: 'Seçili uygulama ve dosya arama adımlarını sırayla çalıştırın. Keyfi shell komutu yoktur.',
+            tag: window.prometheusDesktop ? 'Native izin gerekli' : 'Yerel istemci gerekli',
+            enabled: Boolean(window.prometheusDesktop),
+            action: () =>
+              document.getElementById('desktop-tools')?.scrollIntoView({ behavior: 'smooth' }),
           },
         ].map((t) => (
           <article className={`panel tool-card ${!t.enabled ? 'disabled-tool' : ''}`} key={t.title}>

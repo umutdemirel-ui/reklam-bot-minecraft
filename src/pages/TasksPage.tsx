@@ -19,7 +19,7 @@ export default function TasksPage({ research, researches, navigate, onSelect, on
       <div className="stats-strip">
         <div>
           <span>Devam eden</span>
-          <strong>{research?.status === 'running' ? 1 : 0}</strong>
+          <strong>{['running', 'queued'].includes(research?.status || '') ? 1 : 0}</strong>
         </div>
         <div>
           <span>Tamamlanan araştırma</span>
@@ -27,10 +27,10 @@ export default function TasksPage({ research, researches, navigate, onSelect, on
         </div>
         <div>
           <span>Yerel sistem görevi</span>
-          <strong>Desteklenmiyor</strong>
+          <strong>{window.prometheusDesktop ? 'İzinli araçlar' : 'Masaüstü gerekli'}</strong>
         </div>
       </div>
-      {research?.status === 'running' && (
+      {research && ['running', 'queued'].includes(research.status) && (
         <button className="task-row panel" onClick={() => navigate('research')}>
           <span className="tool-icon">
             <LoaderCircle className="spin" size={20} />
@@ -61,23 +61,29 @@ export default function TasksPage({ research, researches, navigate, onSelect, on
                 <small>{dateLabel(r.date)}</small>
               </div>
               <span className={`small-tag ${r.status === 'done' ? 'success' : ''}`}>
-                {r.status === 'done'
-                  ? 'Tamamlandı'
-                  : r.status === 'cancelled'
-                    ? 'Durduruldu'
-                    : 'Hata'}
+                {r.status === 'queued'
+                  ? 'Sırada'
+                  : r.status === 'running'
+                    ? 'Devam ediyor'
+                    : r.status === 'interrupted'
+                      ? 'Kesildi'
+                      : r.status === 'done'
+                        ? 'Tamamlandı'
+                        : r.status === 'cancelled'
+                          ? 'Durduruldu'
+                          : 'Hata'}
               </span>
               <ChevronRight size={17} />
             </button>
           ))}
         </section>
       ) : (
-        research?.status !== 'running' && (
+        !['running', 'queued'].includes(research?.status || '') && (
           <section className="panel">
             <EmptyState
               icon={ListTodo}
               title="İlk adım sizden."
-              description="Başlattığınız araştırmalar ve ilerlemeleri burada görünür. Yerel otomasyon görevleri henüz desteklenmiyor."
+              description="Başlattığınız araştırmalar ve ilerlemeleri burada görünür. Kalıcı işler sunucuda saklanır; uygulama yenilenince listelenir."
             >
               <Button onClick={() => navigate('research')}>
                 Araştırma başlat <Plus size={15} />

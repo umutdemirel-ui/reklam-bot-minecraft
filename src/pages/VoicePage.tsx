@@ -1,3 +1,4 @@
+import VoiceDevices from '../components/VoiceDevices';
 import type { ReactNode } from 'react';
 import {
   Mic,
@@ -31,6 +32,7 @@ export default function VoicePage({
 }: Props) {
   return (
     <>
+      <VoiceDevices prefs={prefs} preference={preference} />
       <div className="two-column">
         <section className="panel voice-panel">
           <span className="accent-label">
@@ -101,6 +103,7 @@ export default function VoicePage({
                   'Merhaba, ben Prometheus. Birlikte daha fazlası mümkün.',
                   prefs.language,
                   prefs.speechRate,
+                  prefs.ttsMode,
                 )
               )
                 notify('Ses sentezi desteklenmiyor.', true);

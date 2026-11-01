@@ -67,8 +67,9 @@ export default function HistoryPage({
         </button>
       </div>
       <div className="notice">
-        <LockKeyhole size={16} /> Geçmiş yalnızca bu tarayıcıda saklanır. Son 100 komut tutulur;
-        tarayıcı verilerini silmek geçmişi kaldırır.
+        <LockKeyhole size={16} /> Geçmiş varsayılan olarak bu tarayıcıda saklanır; isteğe bağlı
+        eşitleme sunucuda kopya oluşturur. Son 100 komut tutulur; tarayıcı verilerini silmek geçmişi
+        kaldırır.
       </div>
       <section className="panel history-panel">
         {visibleHistory.length ? (

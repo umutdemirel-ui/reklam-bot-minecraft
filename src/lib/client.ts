@@ -26,6 +26,7 @@ export async function api(url: string, body?: object, signal?: AbortSignal) {
     signal,
   });
   const data = await response.json();
+  if (response.status === 401) window.dispatchEvent(new Event('prometheus:locked'));
   if (!response.ok) throw new Error(data.error || 'Servise ulaşılamadı. Tekrar deneyin.');
   return data;
 }

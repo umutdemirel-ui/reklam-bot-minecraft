@@ -1,53 +1,63 @@
-# Güvenlik ve veri sınırları
+# Prometheus 0.2 güvenlik sınırları
 
-Bu sürüm güvenilir bir kullanıcının yerel / geliştirme ortamı içindir. Bağımsız güvenlik denetimi yapılmamıştır. Kullanıcı hesabı, güçlü API kimlik doğrulaması, cihaz eşleştirme ve çok kullanıcılı izolasyon henüz yoktur.
+Bu proje bağımsız güvenlik denetiminden geçmemiştir. Tek sahipli kişisel/geliştirici kullanımı hedefler. Bütün cihazlar aynı veri alanına erişir; çok kullanıcılı servis olarak yayınlanmamalıdır.
 
-## Mevcut korumalar
+## Oturum ve ağ
 
-- `.env` yalnızca Node servisinde okunur; hiçbir sır `VITE_` değişkeni veya tarayıcı bundle'ına eklenmez.
-- `/api/health` anahtar, sağlayıcı adresi veya yerel dosya yolu döndürmez. “Yapılandırıldı” durumu canlı bağlantının çalıştığını kanıtlamaz.
-- Sağlayıcı adresleri yalnızca sunucu operatörü tarafından belirlenir. İstemci keyfi model / arama URL'si gönderemez.
-- JSON gövdesi 24 KB; komut 4000, araştırma konusu 1000, model adı 100 karakterle sınırlıdır.
-- POST istekleri JSON gerektirir. Tarayıcı `Origin` göndermişse `Host` ile eşleşmelidir. Vite proxy Host bilgisini korur. CORS `*` yoktur.
-- Eşzamanlı POST sayısı üçle sınırlıdır. Bu tam bir kullanıcı bazlı rate limiter değildir.
-- Arama 20 saniye, model 120 saniye, bağlantı testi 8 saniye zaman aşımına sahiptir. İstemci kapanınca uzun model / arama isteğine iptal sinyali gider.
-- Çıktılar React tarafından kaçışlanmış düz metin olarak işlenir. `dangerouslySetInnerHTML`, eval veya shell yürütme yoktur. Markdown indirmesi HTML çalıştırmaz.
-- Kaynak bağlantıları yalnızca HTTP / HTTPS olur; yeni sekmeler `noreferrer` ile açılır.
-- Mevcut olmayan / sıfır kaynak numarası içeren veya hiç numaralı kaynak vermeyen model raporu tamamlanmış sayılmaz. Bu yapısal kontrol, anlam doğrulaması değildir.
-- API günlükleri yalnızca izinli rota adı, yöntem, HTTP durum ve süre içerir. İstek gövdesi, komut, API anahtarı veya sağlayıcının hata gövdesi loglanmaz.
-- Silme / sıfırlama gibi yerel kayıt işlemleri onay diyaloğu ister. API hiçbir dosya / sistem silme yeteneği içermez.
+- `PROMETHEUS_PASSWORD` etkinse API, 12 saatlik rastgele token gerektirir. Sunucuda token'ın yalnız SHA-256 özeti bellekte tutulur. En fazla 20 oturum; yeniden başlatma hepsini kapatır.
+- Web cookie: HttpOnly, SameSite=Strict; HTTPS origin girişinde Secure. Mobil istemci yalnız HTTPS kabul eder ve token'ı native Keychain/Keystore'da tutar.
+- Sahip, cihaz oturumlarını görebilir ve iptal edebilir. Parola birden çok kişinin paylaşacağı hesap modeli değildir.
+- Giriş kaynağı başına dakikada 5 deneme sınırı vardır. Reverse proxy arkasında istemciler aynı soket kaynağını paylaşabilir; bu dağıtık kimlik/rate-limit sistemi değildir.
+- Yazma isteklerinde Origin varsa Host ile eşleşmelidir. Origin kontrolü tek başına kimlik doğrulama değildir. CORS `*` eklenmez.
+- Parola kapalıyken geliştirme API'si açıktır; sahip yapılandırması ve eşitleme kapalıdır. Bu modu internete açmayın. Anahtarlı model bağlı bir API'nin erişim maliyeti olabilir.
+- Web sunucusu önizleme için `0.0.0.0`, Electron'un gömülü servisi yalnız `127.0.0.1` dinler. Uzak kullanımda TLS, güvenlik duvarı ve güvenilir proxy zorunludur. Bu sürüm kendi TLS sertifika dağıtımını yapmaz.
 
-## Origin kontrolünün sınırı
+## Sırlar ve dosyalar
 
-`Origin` kontrolü kimlik doğrulama değildir. Tarayıcı dışı istemciler bu başlığı atlayabilir veya taklit edebilir. Sunucular geliştirme önizlemesi için `0.0.0.0` üzerinde dinler. Paylaşılan ağda güvenlik duvarı kullanın. Herkese açık dağıtımdan önce TLS, gerçek kimlik doğrulama, hesap / kota bazlı hız sınırı, güvenilir proxy yapılandırması, CSP ve güvenlik incelemesi gerekir. Anahtarlı sağlayıcı bağlı bir örneği kimliksiz olarak internete açmayın.
+Sağlayıcı ayarları AES-256-GCM ile `vault.json` içinde şifrelenir. Geri okuma API'si anahtarı dönmez. Sağlayıcı değişiminde eski anahtar başka sağlayıcıya taşınmaz. Ollama çağrılarına bulut Authorization başlığı eklenmez.
 
-## Hassas verilerin akışı
+Web sunucusunda `vault.key` aynı kullanıcı veri dizininde 0600 izinle tutulur. Şifreli JSON'un tek başına ele geçmesine karşı koruma sağlar; key ile birlikte dosya erişimi olan kişiye veya aynı kullanıcıya karşı güçlü kasa değildir. Electron güvenli OS depolaması uygunsa master key `safeStorage` ile korunur; Linux `basic_text` güvenli sayılmaz. Güvenli kasa yoksa yeni sır kaydı kapatılır. Mobil API sağlayıcı anahtarı almaz.
 
-| Veri | Gidebileceği yer | Kalıcılık |
-| --- | --- | --- |
-| Ses | Tarayıcı STT motoru; sağlayıcı bulut hizmeti kullanabilir | Prometheus ses kaydı saklamaz; tarayıcı sağlayıcısının politikası ayrıdır |
-| Gönderilen metin | Node API → yapılandırılan model sağlayıcısı | Son 100 komut ve yanıt bu tarayıcıda tutulur; sunucu kalıcı sohbet DB'si yok |
-| Araştırma konusu | Node API → SearXNG, ardından model | Son 20 tamamlanan / hata / iptal kaydı bu tarayıcıda |
-| Kaynak özetleri | SearXNG → Node → model ve tarayıcı | Araştırma kaydıyla tarayıcıda |
-| API anahtarı | Node ortamı → ilgili model sağlayıcısı Authorization başlığı | Operatörün `.env` dosyası / ortamı; tarayıcıya dönmez |
-| Tercihler | Bu tarayıcı | `localStorage`; site verilerini silmek kaldırır |
+`jobs.json` konular, planlar, kaynak tam metinleri ve raporları; `workspace.json` açıkça eşitlenen geçmişi saklar. **Bunlar şifreli değildir.** Dosya izinleri ve cihaz erişimi operatör sorumluluğundadır. Masaüstü izin dosyası seçilen yolları içerir. Tarayıcı/native geçmiş şifreli kişisel veri kasası değildir. Yedekleri de hassas sayın.
 
-Tarayıcı geçmişi şifrelenmez; aynı cihaz / tarayıcı profilini kullanan veya eklenti yetkisi olan kişilerce erişilebilir. Dışa aktarılan JSON / Markdown dosyaları hassas metin içerebilir. Sorumlu biçimde saklayın. Uzak sağlayıcıların veri işleme / saklama koşullarını ayrıca inceleyin.
+Dosya yazımı 0600 geçici dosya + atomik rename kullanır. Çok süreçli/dağıtık dosya yazma garantisi yoktur. Veri dizinini güvenilmeyen kullanıcıların yazabildiği bir konuma taşımayın. `.env`, veri dizini, model/ses dosyaları, bağımlılıklar ve derleme çıktıları Git'e girmez.
 
-## Henüz uygulanmayan güvenlik katmanları
+## Yerel cihaz araçları
 
-- Masaüstü araç izinleri, risk sınıflandırma ve kullanıcı onay token'ları.
-- Güvenli cihaz eşleştirme, OS credential vault / Keychain / Keystore.
-- Şifreli, denetlenmiş senkronizasyon.
-- Çok kullanıcılı kimlik doğrulama, ayrılmış veri depoları ve kota yönetimi.
-- Tam sayfa indirmeye yönelik SSRF / DNS / yönlendirme savunması (henüz tam sayfa indirici yok).
-- Modelin kaynakla anlamsal uyuşmasını doğrulayan alıntı / pasaj denetimi.
+- Web/mobil HTTP API'sinde OS yürütücüsü yoktur.
+- Electron: sandbox, context isolation, kapalı Node integration ve aynı güvenilir pencere/frame origin'inden sabit IPC kanalları.
+- İzin listesi native dosya seçicisinden oluşur. Uygulama açma ek argv/shell almaz. Kapatma yalnız bu oturumun sahip olduğu sürece yöneliktir; macOS kapatma aracı yoktur.
+- Açma/kapatma/konum gösterme/ayar paneli işlemleri native onay ister. Kapatmanın kaydedilmemiş veri kaybı riski açıkça gösterilir.
+- Dosya araması izinli gerçek köklerde, symlink takip etmeden, süre/giriş/sonuç sınırıyla salt okunur yapılır. Konum gösterme gerçek yolun hâlâ izinli kökte olduğunu yeniden denetler.
+- Ayar aracı yalnız sabit ses/ağ/ekran paneli açar; değer değiştirmez. Modelden serbest komut çalıştırılmaz.
+- Masaüstü audit kaydı araç türü/durum/tarih/kimlik içerir; komut metni, seçilen dosya yolu veya parola içermez. Kullanıcının izin verdiği uygulamanın kendi davranışını sandbox içine almaz.
+- Native runtime, imzalama ve gerçek hedef işletim sistemi davranışı henüz doğrulanmadı; bu kaynak kodu, OS sandbox güvenlik denetimi değildir.
 
-Model prompt'u bir güvenlik sınırı değildir. Mevcut sürümde model hiçbir işletim sistemi aracına sahip olmadığı için zararlı yanıtları cihazda çalıştırılamaz. Yeni araç eklenirken güvenlik model dışında, belirlenimci izin kodunda uygulanmalıdır.
+## Araştırma indiricisi ve model
 
-## Bir sır sızarsa
+- URL yalnız HTTP/HTTPS, kullanıcı bilgisi yok, port yalnız 80/443. Uzunluk sınırı vardır.
+- IP literal ve bütün DNS yanıtları genel unicast olmalı; loopback, özel ağ, link-local, metadata, multicast ve IPv4-mapped IPv6 engellenir.
+- Undici bağlantı lookup'u doğrulanmış IP'ye sabitlenir. Her yönlendirme tekrar çözülüp kontrol edilir; en fazla üç yönlendirme.
+- DNS 8 sn, sayfa HTTP 15 sn, içerik 1 MB; yalnız HTML/metin. Script/style/form/nav parçaları çıkarılır; script çalıştırılmaz.
+- Başarısız/engelli sayfa tam okunmuş sayılmaz; yalnız arama özeti olarak kalır.
+- Model çıktısı düz metin/yapısal JSON'dur; HTML veya kod yürütülmez. Kaynak talimatları güvenilmeyen veri kabul edilir.
+- Kaynak numarası ve tam metinde alıntı eşleşmesi denetlenir. Bu, kaynağın güvenilirliğini veya model iddiasının olgusal doğruluğunu doğrulamaz. Prompt, tek başına güvenlik sınırı değildir.
+- SearXNG/model adreslerini yalnız sahip yapılandırır. Bunlar amaç gereği yerel ağda olabilir; okuyucu URL'leri için aynı ayrıcalık verilmez.
 
-1. Anahtarı sağlayıcıdan hemen iptal edin ve yenisini oluşturun.
-2. `.env`, commit, issue ve paylaşılan günlükleri inceleyin. Tek başına dosyayı silmek yeterli değildir.
-3. Git geçmişi temizliği gibi geri alınması zor işlemleri kullanıcı izni olmadan yapmayın.
-4. Geri bildirimlerde gerçek anahtar / parola veya kişisel komut metni paylaşmayın.
+## Ses ve kaynak sınırları
+
+Whisper/Piper yalnız operatörün yapılandırdığı binary/model yollarıyla, shell olmadan başlatılır. Kullanıcı metni stdin; kayıt yolu geçici dosyadır. Kayıt 10 MB, işlem 120 sn, TTS dosyası 16 MB ile sınırlıdır. Normal hata/iptalde geçici dosya temizlenir; zorla process/OS kapanmasında geçici dosya artığı kalabilir.
+
+Tarayıcı STT bulut hizmeti kullanabilir. Yerel STT seçimi kayıtları Prometheus sunucusunda işler; uzaktaki sunucu cihaz içi işleme değildir. Mikrofon yalnız kullanıcı başlatınca açılır; sürekli dinleme yoktur. Mobil arka plan kaydı iptal edilir.
+
+Genel JSON 64 KB, eşitleme JSON 1 MB; konu 1000, komut 4000, model adı 100 karakter sınırında. Üç eşzamanlı POST; tek araştırma worker'ı, en fazla beş bekleyen/aktif iş ve 50 kayıt vardır. Bunlar herkese açık kötüye kullanım/DoS savunmasının tam karşılığı değildir.
+
+## Günlükler ve ihlal
+
+API logları yalnız güvenli rota kategorisi, yöntem, durum ve süre tutar. Gövde, anahtar, upstream hata gövdesi veya komut loglanmaz. Kullanıcıya gösterilen geçmiş ve araştırma dosyaları buna rağmen hassas veri içerir.
+
+Sır sızarsa sağlayıcıdan iptal edin, yenisini oluşturun, cihaz oturumlarını kapatın ve yerel/yedek dosyaları inceleyin. Git geçmişi gibi geri alınması zor işlemler kullanıcı onayı olmadan yapılmamalıdır. Issue/sohbette gerçek anahtar, parola, özel kaynak veya kişisel komut paylaşmayın.
+
+## Henüz olmayanlar
+
+Çok kullanıcılı izolasyon, E2E şifreli otomatik eşitleme, denetlenmiş uzaktan masaüstü eşleştirme, genel uygulama otomasyonu, doğrudan sistem ayarı değişikliği, bağımsız olgu doğrulaması, signed binary zinciri ve kapsamlı güvenlik/erişilebilirlik/performance denetimi yoktur.

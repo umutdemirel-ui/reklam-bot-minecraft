@@ -126,3 +126,11 @@ test('kaynak numaraları olmayan veya sınırı aşan rapor tamamlanmış sayıl
   assert.throws(() => validateCitations('İddia [0]', 2), /geçerli kaynak/);
   assert.equal(validateCitations('İddia [1] ve [2]', 2), 'İddia [1] ve [2]');
 });
+
+test('yerel Ollama isteğine bulut API anahtarı eklenmez', async (t) => {
+  t.mock.method(globalThis, 'fetch', async (_url, options) => {
+    assert.equal(options.headers.Authorization, undefined);
+    return Response.json({ message: { content: 'Yanıt' } });
+  });
+  await complete([], '', undefined, { ...getConfig({}), key: 'fake-cloud-key' });
+});

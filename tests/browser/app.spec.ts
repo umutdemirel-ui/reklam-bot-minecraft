@@ -102,6 +102,7 @@ test('mobil, tablet ve masaüstü: yatay taşma yok ve mobil menü çalışır',
   for (const width of [390, 768, 1440]) {
     await page.setViewportSize({ width, height: 1000 });
     await page.goto('/');
+    await expect(page.locator('.page-content')).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
       true,
     );
@@ -193,9 +194,97 @@ test('tüm sayfalar dar mobil ekranda taşmadan açılır', async ({ page }) => 
     'about',
   ]) {
     await page.goto('/#' + name);
+    await expect(page.locator('.page-content')).toHaveClass(new RegExp('page-' + name));
     expect(
       await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
       name,
     ).toBe(true);
   }
+});
+
+test('parolalı oturum kapısı parolayı yerel depoya yazmadan çalışma alanını açar', async ({
+  page,
+}) => {
+  await page.route('**/api/session', (route) =>
+    route.fulfill({ json: { required: true, authenticated: false } }),
+  );
+  await page.route('**/api/session/login', (route) => route.fulfill({ json: { ok: true } }));
+  await page.goto('/');
+  await expect(page.getByRole('heading', { name: 'Prometheus', exact: true })).toBeVisible();
+  await page.getByLabel('Sunucu parolası').fill('test-password-not-real');
+  await page.getByRole('button', { name: 'Çalışma alanını aç' }).click();
+  await expect(page.locator('.page-content')).toBeVisible();
+  expect(await page.evaluate(() => JSON.stringify(localStorage))).not.toContain(
+    'test-password-not-real',
+  );
+});
+test('kalıcı araştırma sayfa yenilemesinden sonra bulunur ve sunucudan iptal edilir', async ({
+  page,
+}) => {
+  const job = {
+    id: 'persistent-test',
+    topic: 'Yerel modeller',
+    status: 'queued',
+    step: 0,
+    sources: [],
+    report: '',
+    date: new Date().toISOString(),
+    plan: { goal: 'Karşılaştır', queries: ['gizlilik', 'donanım'], questions: ['Veri nerede?'] },
+  };
+  let created = false;
+  await page.route('**/api/health', (route) =>
+    route.fulfill({
+      json: { provider: 'ollama', model: 'test', research: true, durableJobs: true },
+    }),
+  );
+  await page.route('**/api/jobs', (route) => {
+    if (route.request().method() === 'POST') {
+      created = true;
+      return route.fulfill({ status: 202, json: { id: job.id } });
+    }
+    return route.fulfill({ json: created ? [job] : [] });
+  });
+  await page.route('**/api/jobs/persistent-test/cancel', (route) => {
+    job.status = 'cancelled';
+    return route.fulfill({ json: { ok: true } });
+  });
+  await page.goto('/#research');
+  await page.getByRole('textbox', { name: 'Araştırma konusu' }).fill(job.topic);
+  await page.getByRole('button', { name: 'Araştırmayı başlat', exact: true }).click();
+  await expect(page.getByText('Araştırma planı', { exact: true })).toBeVisible();
+  await page.reload();
+  await expect(page.locator('.research-progress')).toContainText('Yerel modeller');
+  await page.getByRole('button', { name: 'Durdur', exact: true }).click();
+  await expect(page.locator('.research-progress')).toContainText('Durduruldu');
+});
+test('kart sırası ve menü görünürlüğü kalıcı kişiselleştirmeye bağlıdır', async ({ page }) => {
+  await page.goto('/#personalize');
+  await page.getByRole('button', { name: '↓', exact: true }).first().click();
+  await page.getByLabel('Sesli Asistan', { exact: true }).uncheck();
+  await page.reload();
+  await expect(
+    page.getByRole('navigation').getByRole('button', { name: 'Sesli Asistan', exact: true }),
+  ).toHaveCount(0);
+  await page
+    .getByRole('navigation')
+    .getByRole('button', { name: 'Ana Sayfa', exact: true })
+    .click();
+  await expect(page.locator('.quick-card').first()).toContainText('Dosya veya klasör bul');
+});
+test('yerel istemci köprüsü yalnız araç ekranında izinli çağrı alır', async ({ page }) => {
+  await page.addInitScript(() => {
+    (window as any).prometheusDesktop = {
+      capabilities: async () => ({
+        platform: 'test',
+        applications: [{ id: 'app', name: 'Test uygulaması' }],
+        roots: [],
+        running: [],
+        audit: [],
+      }),
+      execute: async (action: string) => ({ cancelled: action === 'openApplication' }),
+    };
+  });
+  await page.goto('/#tools');
+  await page.getByRole('button', { name: 'Aç', exact: true }).click();
+  await expect(page.getByText('İşlem iptal edildi.', { exact: true })).toBeVisible();
 });
